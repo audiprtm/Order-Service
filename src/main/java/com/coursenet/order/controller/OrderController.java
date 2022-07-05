@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.coursenet.order.dto.OrderRequestDTO;
 import com.coursenet.order.dto.OrderResponseDTO;
+import com.coursenet.order.dto.OrderStatusRequestDTO;
 import com.coursenet.order.service.OrderService;
 
 @RestController
@@ -19,4 +20,10 @@ public class OrderController {
 	public ResponseEntity<OrderResponseDTO>createOrder(@RequestBody OrderRequestDTO orderRequest) {
 		return orderService.createOrder(orderRequest);
 	}
+	
+	@PostMapping("/orders/update-status")
+	public ResponseEntity<OrderResponseDTO>updateStatusOrder(@RequestBody OrderStatusRequestDTO orderStatusRequest) {
+		return orderService.updateStatusOrder(orderStatusRequest);
+	}
+	
 }
