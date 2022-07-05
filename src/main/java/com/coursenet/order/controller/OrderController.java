@@ -1,4 +1,4 @@
-package com.coursenet.controller;
+package com.coursenet.order.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
