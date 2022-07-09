@@ -5,29 +5,26 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Optional;
 
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import com.coursenet.order.client.DeliveryServiceClient;
 import com.coursenet.order.dto.DeliveryRequestDTO;
+import com.coursenet.order.dto.DeliveryStatusRequestDTO;
 import com.coursenet.order.dto.OrderRequestDTO;
 import com.coursenet.order.dto.OrderResponseDTO;
 import com.coursenet.order.dto.OrderStatusRequestDTO;
 import com.coursenet.order.entity.Orders;
+import com.coursenet.order.enums.DeliveryStatus;
 import com.coursenet.order.enums.OrderStatus;
 import com.coursenet.order.repository.OrderRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class OrderService {
 	@Autowired
 	private OrderRepository orderRepository;
@@ -52,10 +49,14 @@ public class OrderService {
 		order = orderRepository.save(order);
 		
 		OrderResponseDTO orderResponseDTO = new OrderResponseDTO(order);
+		log.info("Create order Controller Finished, "
+				+ "request: "+orderRequest.toString()
+				+ ",response : "+orderResponseDTO.toString()
+		);
 		return new ResponseEntity<>(orderResponseDTO,HttpStatus.CREATED);
 	}
 
-	public ResponseEntity<OrderResponseDTO> updateStatusOrder(OrderStatusRequestDTO orderStatusRequest) {
+	public ResponseEntity<OrderResponseDTO> updateStatusOrder(String token, OrderStatusRequestDTO orderStatusRequest) {
 		Optional<Orders> order = orderRepository.findById(orderStatusRequest.getId());
 		if (!order.isPresent()) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
@@ -64,24 +65,28 @@ public class OrderService {
 		OrderResponseDTO orderResponseDTO;
 		// nge update status nya
 		switch (orderStatusRequest.getStatus()) {
-		case IN_PROCESS:
-			orderResponseDTO = processOrder(order.get());
-			break;
-		case FINISHED:
-			orderResponseDTO = finishOrder(order.get());
-			break;
-		case CANCELLED:
-			orderResponseDTO = cancelOrder(order.get());
-			break;
-		default:
-			orderResponseDTO = null;
-			break;
+			case IN_PROCESS:
+				orderResponseDTO = processOrder(token, order.get());
+				break;
+			case FINISHED:
+				orderResponseDTO = finishOrder(order.get());
+				break;
+			case CANCELLED:
+				orderResponseDTO = cancelOrder(token, order.get());
+				break;
+			default:
+				orderResponseDTO = null;
+				break;
 		}
 
 		if (orderResponseDTO == null) {
 			return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
-
+		
+		log.info("Update Status Order Controller Finished, "
+				+ "request: "+orderStatusRequest.toString()
+				+ ",response : "+orderResponseDTO.toString()
+		);
 		return new ResponseEntity<>(orderResponseDTO, HttpStatus.OK);
 	}
 
@@ -98,15 +103,28 @@ public class OrderService {
 		return new OrderResponseDTO(order);
 	}
 
-	private OrderResponseDTO cancelOrder(Orders order) {
-		if(order.getStatus()!=OrderStatus.IN_PROCESS) {
+	private OrderResponseDTO cancelOrder(String token, Orders order) {
+		if(order.getStatus()==OrderStatus.FINISHED || order.getStatus()==OrderStatus.CANCELLED) {
 			return null;
 		}
 		
-		DeliveryRequestDTO deliveryRequestDTO = new DeliveryRequestDTO();
-		
 		//Kalo dia in process, cancel delivery ke delivery-service
-		deliveryServiceClient.cancelDelivery(deliveryRequestDTO);
+		if(order.getStatus()==OrderStatus.IN_PROCESS) {
+			try {
+				deliveryServiceClient.updateStatusDelivery(token,
+						DeliveryStatusRequestDTO
+						.builder()
+						.orderId(order.getId())
+						.invoice(order.getInvoice())
+						.shipperId(order.getShipperId())
+						.status(DeliveryStatus.CANCELLED)
+						.build()
+						);
+			} catch (Exception e) {
+				log.error(e.toString());
+				return null;
+			}
+		}
  		
 		//Save ke database & Return Response
 		order.setStatus(OrderStatus.CANCELLED);
@@ -115,16 +133,27 @@ public class OrderService {
 		return new OrderResponseDTO(order);
 	}
 
-	private OrderResponseDTO processOrder(Orders order) {
+	private OrderResponseDTO processOrder(String token, Orders order) {
 		//Kalo dia bukan created, return error
 		if(order.getStatus()!=OrderStatus.CREATED) {
 			return null;
 		}
-		
-		DeliveryRequestDTO deliveryRequestDTO = new DeliveryRequestDTO();
-		
+
 		//Kalo dia created, bikin delivery ke delivery-service
-		deliveryServiceClient.createDelivery(deliveryRequestDTO);
+		try {
+			deliveryServiceClient.createDelivery(
+					token, DeliveryRequestDTO
+					.builder()
+					.invoice(order.getInvoice())
+					.orderId(order.getId())
+					.shipperId(order.getShipperId())
+					.goodsName(order.getGoodsName())
+					.build()
+					);
+		} catch (Exception e) {
+			log.error(e.toString());
+			return null;
+		}
  		
 		//Save ke database & Return Response
 		order.setStatus(OrderStatus.IN_PROCESS);

@@ -22,7 +22,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter{
 	    .and()
 	    .addFilter(new JWTSecurityFilter(authenticationManager(),jwtUtil))
 	    .authorizeRequests()
-	    .antMatchers("/**")
+	    .antMatchers("/actuator/**")
 	    .permitAll()
 	    .anyRequest().authenticated()
 	    .and().httpBasic();
