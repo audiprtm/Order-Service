@@ -1,5 +1,6 @@
 package com.coursenet.order.client;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -25,7 +26,8 @@ public class DeliveryServiceClient {
 	@Value("${delivery.updateStatusDelivery.endpoint}")
 	private String deliveryUpdateStatusDeliveryEndpoint;
 	
-	private RestTemplate restTemplate = new RestTemplate();
+	@Autowired
+	private RestTemplate restTemplate;
 	
 	public void createDelivery(String token, DeliveryRequestDTO deliveryRequestDTO) throws Exception {
 		log.info("DeliveryClient Create Delivery Started,"
